@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Podcast Processor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4F46E5;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div id="app" class="p-8">
+        <div class="max-w-3xl mx-auto">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-gray-800 mb-2">Podcast Processor</h1>
+                <p class="text-gray-600">Upload, process, and publish sermon audio</p>
+            </div>
+
+            <!-- Main Form -->
+            <div class="bg-white rounded-lg shadow-lg p-8 mb-6">
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                        <input type="date" id="date" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                        <input type="text" id="title" placeholder="Enter sermon title" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+
+                <div id="dropzone" class="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center transition-colors bg-gray-50 hover:border-indigo-500 hover:bg-indigo-50">
+                    <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="text-lg font-medium text-gray-700 mb-2">Drag and drop WAV files here</p>
+                    <p class="text-sm text-gray-500 mb-4">or</p>
+                    <label class="inline-block">
+                        <input type="file" id="fileInput" accept=".wav,audio/wav" multiple class="hidden">
+                        <span class="px-6 py-3 bg-indigo-600 text-white rounded-lg cursor-pointer hover:bg-indigo-700 transition-colors inline-block">Browse Files</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Status Updates -->
+            <div id="statusContainer" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div class="flex items-center">
+                    <div class="spinner mr-3"></div>
+                    <span id="statusText" class="text-blue-800 font-medium">Processing...</span>
+                </div>
+            </div>
+
+            <!-- Files List -->
+            <div id="filesContainer" class="hidden bg-white rounded-lg shadow-lg p-8">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Files (<span id="fileCount">0</span>)</h2>
+                <div id="filesList" class="space-y-3 mb-6"></div>
+                <button id="processBtn" class="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium">
+                    Process & Publish
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const files = [];
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const filesContainer = document.getElementById('filesContainer');
+        const filesList = document.getElementById('filesList');
+        const fileCount = document.getElementById('fileCount');
+        const processBtn = document.getElementById('processBtn');
+        const statusContainer = document.getElementById('statusContainer');
+        const statusText = document.getElementById('statusText');
+        const dateInput = document.getElementById('date');
+        const titleInput = document.getElementById('title');
+
+        // Set default date to today
+        dateInput.valueAsDate = new Date();
+
+        // Drag and drop handlers
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => {
+                dropzone.classList.add('border-indigo-500', 'bg-indigo-50');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => {
+                dropzone.classList.remove('border-indigo-500', 'bg-indigo-50');
+            }, false);
+        });
+
+        dropzone.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', handleFileSelect, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const newFiles = dt.files;
+            handleFiles(newFiles);
+        }
+
+        function handleFileSelect(e) {
+            handleFiles(e.target.files);
+        }
+
+        function handleFiles(fileList) {
+            const wavFiles = Array.from(fileList).filter(file => 
+                file.type === 'audio/wav' || file.name.toLowerCase().endsWith('.wav')
+            );
+
+            wavFiles.forEach(file => {
+                const fileObj = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    file: file,
+                    name: file.name,
+                    size: (file.size / 1024 / 1024).toFixed(2),
+                    status: 'pending'
+                };
+                files.push(fileObj);
+            });
+
+            updateFilesList();
+        }
+
+        function updateFilesList() {
+            if (files.length === 0) {
+                filesContainer.classList.add('hidden');
+                return;
+            }
+
+            filesContainer.classList.remove('hidden');
+            fileCount.textContent = files.length;
+            filesList.innerHTML = '';
+
+            files.forEach(file => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'flex items-center justify-between p-4 bg-gray-50 rounded-lg';
+                fileDiv.innerHTML = `
+                    <div class="flex items-center space-x-3 flex-1 min-w-0">
+                        <svg class="w-8 h-8 text-indigo-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-gray-800 truncate">${file.name}</p>
+                            <p class="text-sm text-gray-500">${file.size} MB</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        ${file.status === 'complete' ? `
+                            <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            ${file.wpEditLink ? `<a href="${file.wpEditLink}" target="_blank" class="px-3 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors">Edit Post</a>` : ''}
+                        ` : file.status === 'uploading' ? `
+                            <div class="spinner"></div>
+                            <span class="text-sm text-gray-600">Processing...</span>
+                        ` : file.status === 'error' ? `
+                            <span class="text-sm text-red-600 font-medium">Error</span>
+                        ` : `
+                            <button onclick="removeFile('${file.id}')" class="p-1 hover:bg-gray-200 rounded transition-colors">
+                                <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        `}
+                    </div>
+                `;
+                filesList.appendChild(fileDiv);
+            });
+
+            const pendingFiles = files.filter(f => f.status === 'pending');
+            processBtn.disabled = pendingFiles.length === 0;
+        }
+
+        function removeFile(id) {
+            const index = files.findIndex(f => f.id === id);
+            if (index > -1) {
+                files.splice(index, 1);
+                updateFilesList();
+            }
+        }
+
+        processBtn.addEventListener('click', async () => {
+            const title = titleInput.value.trim();
+            const date = dateInput.value;
+
+            if (!title) {
+                alert('Please enter a title');
+                return;
+            }
+
+            processBtn.disabled = true;
+            statusContainer.classList.remove('hidden');
+
+            for (const file of files) {
+                if (file.status === 'pending') {
+                    file.status = 'uploading';
+                    updateFilesList();
+
+                    const formData = new FormData();
+                    formData.append('file', file.file);
+                    formData.append('date', date);
+                    formData.append('title', title);
+
+                    try {
+                        const response = await fetch('/api/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+
+                            const chunk = decoder.decode(value);
+                            const lines = chunk.split('\n');
+
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    const data = line.slice(6);
+                                    if (data === '[DONE]') break;
+
+                                    try {
+                                        const update = JSON.parse(data);
+                                        if (update.status) {
+                                            statusText.textContent = update.status;
+                                        }
+                                        if (update.complete) {
+                                            file.status = 'complete';
+                                            file.wpEditLink = update.wordpress?.editLink;
+                                            updateFilesList();
+                                        }
+                                        if (update.error) {
+                                            file.status = 'error';
+                                            updateFilesList();
+                                        }
+                                    } catch (e) {
+                                        console.error('Parse error:', e);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Upload error:', error);
+                        file.status = 'error';
+                        updateFilesList();
+                    }
+                }
+            }
+
+            statusContainer.classList.add('hidden');
+            processBtn.disabled = false;
+        });
+    </script>
+</body>
+</html>
