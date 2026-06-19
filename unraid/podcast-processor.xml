@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Podcast Processor</Name>
+  <Repository>podcast-processor:latest</Repository>
+  <Registry/>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support/>
+  <Project/>
+  <Overview>Processes sermon WAV files, transcribes them locally, stores public podcast files, and creates WordPress drafts.</Overview>
+  <Category>MediaApp:Other</Category>
+  <WebUI>http://[IP]:[PORT:8000]/</WebUI>
+  <Icon>https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/podcast.png</Icon>
+  <ExtraParams>--init</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Web UI" Target="8000" Default="8000" Mode="tcp" Description="Dashboard port" Type="Port" Display="always" Required="true" Mask="false">8000</Config>
+  <Config Name="Application data" Target="/data" Default="/mnt/user/appdata/podcast-processor" Mode="rw" Description="Database, pending jobs, and Whisper model cache" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/podcast-processor</Config>
+  <Config Name="Podcast share" Target="/podcasts" Default="/mnt/user/podcasts" Mode="rw" Description="Share also served by FileBrowser" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/podcasts</Config>
+  <Config Name="Podcast public URL" Target="PODCAST_PUBLIC_BASE_URL" Default="" Mode="" Description="Public FileBrowser URL corresponding to /podcasts" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="Admin username" Target="ADMIN_USERNAME" Default="admin" Mode="" Description="Dashboard administrator" Type="Variable" Display="always" Required="true" Mask="false">admin</Config>
+  <Config Name="Admin password hash" Target="ADMIN_PASSWORD_HASH" Default="" Mode="" Description="Argon2 hash generated with python -m app.password" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Session secret" Target="SESSION_SECRET" Default="" Mode="" Description="Random string of at least 32 characters" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Secure cookies" Target="SECURE_COOKIES" Default="true" Mode="" Description="Set false only when accessing directly over HTTP" Type="Variable" Display="advanced" Required="true" Mask="false">true</Config>
+  <Config Name="OpenAI API key" Target="OPENAI_API_KEY" Default="" Mode="" Description="OpenAI project API key" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="OpenAI model" Target="OPENAI_MODEL" Default="gpt-5.4-mini" Mode="" Description="Responses API model" Type="Variable" Display="advanced" Required="true" Mask="false">gpt-5.4-mini</Config>
+  <Config Name="WordPress URL" Target="WORDPRESS_URL" Default="" Mode="" Description="HTTPS site URL without /wp-admin" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="WordPress username" Target="WORDPRESS_USERNAME" Default="" Mode="" Description="Application Password user" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="WordPress Application Password" Target="WORDPRESS_APPLICATION_PASSWORD" Default="" Mode="" Description="WordPress Application Password" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="WordPress sermon category ID" Target="WORDPRESS_CATEGORY_ID" Default="" Mode="" Description="Optional numeric category ID" Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="Whisper threads" Target="WHISPER_THREADS" Default="4" Mode="" Description="CPU threads used by faster-whisper" Type="Variable" Display="advanced" Required="true" Mask="false">4</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="Unraid file owner user ID" Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Unraid file owner group ID" Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
+</Container>
+

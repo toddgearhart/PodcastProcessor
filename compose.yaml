@@ -1,0 +1,16 @@
+services:
+  podcast-processor:
+    build: .
+    container_name: podcast-processor
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATA_DIR: /data
+      PODCAST_DIR: /podcasts
+    volumes:
+      - ./data:/data
+      - /mnt/user/podcasts:/podcasts
+

@@ -1,189 +1,76 @@
 # Podcast Processor
 
-Automated system for processing sermon audio files and publishing to WordPress.
+A self-hosted sermon workflow for Unraid. Upload a WAV and optional slide PNGs in a browser; the single Docker container masters the audio, transcribes it locally on the CPU, writes the MP3 and transcript into a FileBrowser-served share, and creates a WordPress draft.
 
-## Features
+## What it produces
 
-- **WAV Upload**: Web interface for uploading WAV audio files
-- **Audio Processing**: 
-  - Dynamic range compression
-  - Loudness normalization to -14 LUFS
-  - MP3 conversion at 128kbps stereo
-- **Automatic File Management**: 
-  - Uploads to FileBrowser organized by year
-  - Generates podcast URLs
-- **WordPress Integration**: 
-  - Creates draft posts automatically
-  - Custom post title format: `MM/DD/YYYY | Title | SUNDAY SERVICE`
-  - Assigns to "Podcasts" category
+For a sermon dated June 19, 2026 titled “The Good Shepherd”:
 
-## Directory Structure
-
-```
-podcast-processor/
-├── backend/
-│   ├── Dockerfile
-│   ├── package.json
-│   └── server.js
-├── frontend/
-│   ├── Dockerfile
-│   ├── nginx.conf
-│   ├── package.json
-│   └── src/
-│       └── App.js
-├── docker-compose.yml
-├── setup.sh
-└── README.md
+```text
+/podcasts/2026/2026_06_19_The_Good_Shepherd.mp3
+/podcasts/2026/2026_06_19_The_Good_Shepherd.txt
 ```
 
-## Prerequisites
+The WordPress draft contains a generated two-to-three paragraph introduction, an audio player, transcript link, and an ordered slide gallery. It is never automatically published.
 
-- Docker and Docker Compose installed
-- Linux server with `/mnt/user/appdata/` directory
-- FileBrowser instance running
-- WordPress site with REST API enabled
+## Quick start
 
-## Installation
+1. Build the image:
 
-1. **Clone or download** this repository to your server
-
-2. **Run the setup script**:
-   ```bash
-   chmod +x setup.sh
-   ./setup.sh
+   ```sh
+   docker build -t podcast-processor .
    ```
 
-3. **Start the application**:
-   ```bash
-   docker-compose up -d
+2. Generate an administrator password hash:
+
+   ```sh
+   docker run --rm -it podcast-processor python -m app.password
    ```
 
-4. **Configure credentials** (first time only):
-   - Open http://localhost:3000/auth.html in your browser
-   - Enter your FileBrowser credentials
-   - Enter your WordPress credentials
-   - Enter your podcast base URL
-   - Click "Test Connection" to verify
-   - Click "Save & Continue"
+3. Copy `.env.example` to `.env` and fill in the hash, a random session secret, OpenAI project API key, WordPress settings, and FileBrowser public URL.
 
-5. **Access the web interface**:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:3001
+4. Change the `/mnt/user/podcasts` host path in `compose.yaml` to the share already mounted in FileBrowser, then start:
 
-## Configuration
+   ```sh
+   docker compose up -d --build
+   ```
 
-### First-Time Setup
+5. Open `http://SERVER-IP:8000`. If there is no HTTPS reverse proxy yet, set `SECURE_COOKIES=false`; return it to `true` when HTTPS is enabled.
 
-On first run, you must configure your credentials through the web interface:
+The first transcription downloads `medium.en` into `/data/models`. Keep `/data` persistent across container upgrades.
 
-1. Navigate to http://localhost:3000/auth.html
-2. Fill in all required fields:
-   - **FileBrowser URL**: Your FileBrowser instance URL
-   - **FileBrowser Username**: Admin username
-   - **FileBrowser Password**: Admin password
-   - **WordPress URL**: Your WordPress site URL
-   - **WordPress Username**: Your WordPress username
-   - **WordPress Application Password**: Generate from WordPress Admin → Users → Profile → Application Passwords
-   - **Podcast Base URL**: Base URL where podcasts will be accessible
+## WordPress preparation
 
-3. Click "Test Connection" to verify all credentials work
-4. Click "Save & Continue" to store credentials securely
+- In WordPress, open **Users → Profile → Application Passwords** for a user allowed to upload media and edit posts.
+- Create an Application Password and place its generated value in `WORDPRESS_APPLICATION_PASSWORD`.
+- Set `WORDPRESS_CATEGORY_ID` to the numeric sermon category ID, or leave it empty for no fixed category.
+- Ensure the REST API endpoints under `/wp-json/wp/v2` are reachable from the container.
 
-### Credential Storage
+## FileBrowser mapping
 
-- Credentials are stored **encrypted** on the server in `/mnt/user/appdata/podcast-processor/data/credentials.json`
-- Passwords are encrypted using AES-256-CBC
-- The encryption key is auto-generated on first run (or set via `ENCRYPTION_KEY` environment variable)
-- Credentials are **never** stored in code or environment variables visible in docker-compose.yml
-- The credentials file is excluded from Git via `.gitignore`
+The processor does not call the FileBrowser API. Both containers must mount the same host share. `PODCAST_PUBLIC_BASE_URL` must be the URL that maps to the root of the processor’s `/podcasts` mount. The application URL-encodes the year and filenames when it builds links.
 
-### Updating Credentials
+## Unraid
 
-To update your credentials later:
-1. Visit http://localhost:3000/auth.html
-2. Modify any fields as needed
-3. Click "Save & Continue"
+Build or publish the image, then import [`unraid/podcast-processor.xml`](unraid/podcast-processor.xml) as a user template. The normal Unraid ownership defaults are PUID `99` and PGID `100`. The entrypoint fixes ownership only for `/data`; the existing podcast share’s permissions remain under your control.
 
-All configuration is managed through environment variables in `docker-compose.yml` (for non-sensitive settings only). Sensitive credentials are configured through the web interface.
+Allocate 4–8 CPU threads and 8–16 GB RAM if possible. Only one sermon is processed at a time. There is no GPU requirement.
 
-## Usage
+## Audio and retry behavior
 
-1. Open the web interface at http://localhost:3000
-2. Select a date for the sermon
-3. Enter the sermon title
-4. Upload one or more WAV files
-5. Click "Process & Publish"
-6. Monitor the real-time status updates
-7. Click "Edit Post" to review the WordPress draft
+FFmpeg applies moderate speech compression, one-second fades, and two-pass EBU R128 normalization. The finished 128 kbps MP3 must measure −14 LUFS ±0.5 and no higher than −1 dBTP. Files are published by atomic rename.
 
-## File Naming
+Interrupted active jobs return to the queue after restart. Failed jobs retain their source files and can be retried from the dashboard. Completed jobs remove their working directory. WordPress media and posts use deterministic slugs so retries reuse existing remote objects.
 
-Processed MP3 files are named using the format:
-```
-YYYY-MM-DD_title.mp3
+## Development and tests
+
+```sh
+python -m venv .venv
+. .venv/bin/activate
+pip install -e '.[test]'
+pytest
+uvicorn app.main:app --reload
 ```
 
-Example: `2025-12-23_sunday_morning_sermon.mp3`
+FFmpeg and FFprobe must be installed for media tests and local processing.
 
-## WordPress Post Format
-
-**Post Title**: `MM/DD/YYYY | Title | SUNDAY SERVICE`
-
-**Example**: `12/23/2025 | Christmas Message | SUNDAY SERVICE`
-
-**Post Content**: 
-- Audio player embed
-- Download link
-- Note about Media-Input-Podcast custom field
-
-## Volume Mounts
-
-Data is persisted in `/mnt/user/appdata/podcast-processor/`:
-- `uploads/` - Temporary storage for uploaded WAV files
-- `downloads/` - Temporary storage for processed MP3 files
-- `logs/` - Application logs
-
-## Troubleshooting
-
-**Check container status**:
-```bash
-docker-compose ps
-```
-
-**View logs**:
-```bash
-docker-compose logs -f
-```
-
-**Restart services**:
-```bash
-docker-compose restart
-```
-
-**Rebuild after code changes**:
-```bash
-docker-compose down
-docker-compose build
-docker-compose up -d
-```
-
-## Security Notes
-
-- **Credentials are encrypted** using AES-256-CBC encryption on the server
-- **Never commit** the `data/credentials.json` file (it's in .gitignore)
-- **Application passwords** are recommended for WordPress (not your main password)
-- Consider using **HTTPS** in production with a reverse proxy (nginx/Traefik)
-- The **encryption key** is auto-generated; you can set a custom one via the `ENCRYPTION_KEY` environment variable
-- Credentials are only stored server-side; they never appear in frontend JavaScript or GitHub
-
-## Support
-
-For issues or questions, check the logs:
-```bash
-docker-compose logs backend
-docker-compose logs frontend
-```
-
-## License
-
-MIT License

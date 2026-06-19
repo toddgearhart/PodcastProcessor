@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block head %}{% if job.status not in ['succeeded', 'failed'] %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block title %}{{ job.title }} · Podcast Processor{% endblock %}
+{% block content %}
+<a class="back" href="/">← All jobs</a>
+<section class="job-header">
+  <div><p class="eyebrow">{{ job.sermon_date }}</p><h1>{{ job.title }}</h1>
+    <p class="muted">{% if job.speaker %}{{ job.speaker }}{% endif %}{% if job.scripture %} · {{ job.scripture }}{% endif %}</p>
+  </div>
+  <span class="status large {{ job.status }}">{{ job.status.replace('_', ' ') }}</span>
+</section>
+
+{% if job.error_message %}<div class="alert error"><strong>Processing stopped.</strong> {{ job.error_message }}</div>{% endif %}
+
+<section class="card details">
+  <dl>
+    <div><dt>Filename</dt><dd>{{ job.base_filename }}</dd></div>
+    <div><dt>Attempt</dt><dd>{{ job.attempts }}</dd></div>
+    {% if job.series %}<div><dt>Series</dt><dd>{{ job.series }}</dd></div>{% endif %}
+    {% if job.mp3_url %}<div><dt>Podcast</dt><dd><a href="{{ job.mp3_url }}" target="_blank" rel="noreferrer">Open MP3 ↗</a></dd></div>{% endif %}
+    {% if job.transcript_url %}<div><dt>Transcript</dt><dd><a href="{{ job.transcript_url }}" target="_blank" rel="noreferrer">Open transcript ↗</a></dd></div>{% endif %}
+    {% if job.wordpress_edit_url %}<div><dt>WordPress</dt><dd><a href="{{ job.wordpress_edit_url }}" target="_blank" rel="noreferrer">Edit draft ↗</a></dd></div>{% endif %}
+  </dl>
+  {% if job.status == 'failed' %}
+  <form method="post" action="/jobs/{{ job.id }}/retry">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><button type="submit">Retry from the last safe point</button>
+  </form>
+  {% endif %}
+</section>
+
+{% if job.introduction %}
+<section class="card"><h2>Generated introduction</h2>{% for paragraph in job.introduction.split('\n\n') %}<p>{{ paragraph }}</p>{% endfor %}</section>
+{% endif %}
+{% endblock %}
+

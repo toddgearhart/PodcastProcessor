@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div><p class="eyebrow">Sermon publishing</p><h1>Turn a WAV into a finished draft.</h1></div>
+  <p>Audio mastering, local transcription, public files, and WordPress—all in one queue.</p>
+</section>
+
+<section class="card">
+  <h2>New sermon</h2>
+  <form method="post" action="/jobs" enctype="multipart/form-data" class="form-grid">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>Date<input type="date" name="sermon_date" required></label>
+    <label>Title<input name="title" maxlength="300" required placeholder="The Good Shepherd"></label>
+    <label>Speaker <span>(optional)</span><input name="speaker" maxlength="200"></label>
+    <label>Scripture <span>(optional)</span><input name="scripture" maxlength="300" placeholder="John 10:1–18"></label>
+    <label>Series <span>(optional)</span><input name="series" maxlength="300"></label>
+    <label>WAV recording<input type="file" name="wav" accept="audio/wav,.wav" required></label>
+    <label class="wide">Slide PNGs <span>(optional; filename order)</span><input type="file" name="slides" accept="image/png,.png" multiple></label>
+    <div class="wide"><button type="submit">Queue sermon</button></div>
+  </form>
+</section>
+
+<section class="jobs">
+  <div class="section-heading"><h2>Recent jobs</h2><span>{{ jobs|length }} shown</span></div>
+  {% if jobs %}
+  <div class="job-list">
+    {% for job in jobs %}
+    <a class="job-row" href="/jobs/{{ job.id }}">
+      <div><strong>{{ job.title }}</strong><span>{{ job.sermon_date }}{% if job.speaker %} · {{ job.speaker }}{% endif %}</span></div>
+      <span class="status {{ job.status }}">{{ job.status.replace('_', ' ') }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}<p class="empty">No sermons queued yet.</p>{% endif %}
+</section>
+{% endblock %}
+
